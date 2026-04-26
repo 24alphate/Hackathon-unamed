@@ -4,11 +4,28 @@ This stack runs the **full** app: Vite static UI, FastAPI with **sentence-transf
 
 ## One-time on the server
 
-1. Install Docker + Compose plugin: [Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) (or your distro’s instructions).
-2. Open port **80** in the Hetzner **Firewall** (and **443** if you add TLS later).
-3. Clone the repo, `cd` into it, copy `deploy/env.example` to `.env` and set at least `OPENAI_API_KEY`.
+1. **Hetzner Cloud firewall:** allow **TCP 22** (SSH) and **TCP 80** (HTTP).
+2. **SSH in** as `root` (or use `sudo` for the commands below).
 
-## Start
+### Option A — one command (installs Docker, clones, starts)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/24alphate/Hackathon-unamed/main/deploy/install-on-server.sh | bash
+```
+
+Optional: set your key first (or edit `/opt/hackathon-unamed/.env` after):
+
+```bash
+export OPENAI_API_KEY="sk-..."
+curl -fsSL https://raw.githubusercontent.com/24alphate/Hackathon-unamed/main/deploy/install-on-server.sh | bash
+```
+
+Install path is **`/opt/hackathon-unamed`** (override with `INSTALL_DIR` if you export it before the script).
+
+### Option B — manual
+
+1. Install Docker + Compose: [Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
+2. Clone the repo, `cp deploy/env.example .env`, set `OPENAI_API_KEY`, then:
 
 ```bash
 docker compose up -d --build
