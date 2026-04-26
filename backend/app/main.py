@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -42,8 +43,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Vercel "api" service uses routePrefix /api: incoming paths are /health, /auth/login, …
+# (not /api/health). Use a router with prefix /api for local/uvicorn; none on Vercel.
+api_router = APIRouter()
 
-@app.get("/api/health")
+
+@api_router.get("/health")
 def health() -> dict[str, Any]:
     ok = True
     try:
@@ -72,7 +77,7 @@ class AuthLoginIn(BaseModel):
     email: str = ""
 
 
-@app.post("/api/auth/signup")
+@api_router.post("/auth/signup")
 def auth_signup(body: AuthSignupIn) -> Any:
     """Parity with server/index.js POST /api/auth/signup (needed on Vercel: Python, not Node)."""
     name = (body.name or "").strip()
@@ -125,7 +130,7 @@ def auth_signup(body: AuthSignupIn) -> Any:
         conn.close()
 
 
-@app.post("/api/auth/login")
+@api_router.post("/auth/login")
 def auth_login(body: AuthLoginIn) -> Any:
     """Parity with server/index.js POST /api/auth/login."""
     email = (body.email or "").strip().lower()
@@ -159,7 +164,7 @@ def auth_login(body: AuthLoginIn) -> Any:
         conn.close()
 
 
-@app.get("/api/bootstrap")
+@api_router.get("/bootstrap")
 def bootstrap() -> dict[str, Any]:
     conn = get_db()
     try:
@@ -195,7 +200,7 @@ def _row_to_dict(row: Any) -> dict[str, Any] | None:
     return None
 
 
-@app.get("/api/challenges")
+@api_router.get("/challenges")
 def list_challenges() -> list[dict[str, Any]]:
     conn = get_db()
     try:
@@ -206,7 +211,7 @@ def list_challenges() -> list[dict[str, Any]]:
         conn.close()
 
 
-@app.get("/api/challenges/{challenge_id}")
+@api_router.get("/challenges/{challenge_id}")
 def get_challenge(challenge_id: int) -> dict[str, Any]:
     conn = get_db()
     try:
@@ -230,7 +235,7 @@ class SubmissionIn(BaseModel):
     videoUrl: str = ""
 
 
-@app.post("/api/submissions")
+@api_router.post("/submissions")
 async def create_submission(body: SubmissionIn) -> dict[str, Any]:
     pd = (body.projectDescription or "").strip()
     ghu = (body.githubUrl or "").strip()
@@ -275,7 +280,7 @@ class EvaluateIn(BaseModel):
     explanation: str = ""
 
 
-@app.post("/api/evaluate")
+@api_router.post("/evaluate")
 async def evaluate_only(body: EvaluateIn) -> dict[str, Any]:
     pd = (body.projectDescription or "").strip()
     ghu = (body.githubUrl or "").strip()
@@ -293,7 +298,7 @@ class ParseJobIn(BaseModel):
     jobPost: str = ""
 
 
-@app.post("/api/parse-job")
+@api_router.post("/parse-job")
 async def parse_job(body: ParseJobIn) -> dict[str, Any]:
     jp = (body.jobPost or "").strip()
     if not jp:
@@ -309,7 +314,7 @@ class CreateJobIn(BaseModel):
     rawDescription: str = ""
 
 
-@app.post("/api/jobs")
+@api_router.post("/jobs")
 async def create_job(body: CreateJobIn) -> dict[str, Any]:
     raw = (body.rawDescription or "").strip()
     if not body.companyId or not raw:
@@ -352,7 +357,7 @@ async def create_job(body: CreateJobIn) -> dict[str, Any]:
     return {"jobId": job_id, **parsed}
 
 
-@app.get("/api/jobs")
+@api_router.get("/jobs")
 def get_jobs(companyId: int | None = None) -> list[dict[str, Any]]:
     conn = get_db()
     try:
@@ -372,7 +377,7 @@ def get_jobs(companyId: int | None = None) -> list[dict[str, Any]]:
         conn.close()
 
 
-@app.get("/api/jobs/{job_id}")
+@api_router.get("/jobs/{job_id}")
 def get_job(job_id: int) -> dict[str, Any]:
     conn = get_db()
     try:
@@ -393,7 +398,7 @@ def get_job(job_id: int) -> dict[str, Any]:
         conn.close()
 
 
-@app.post("/api/jobs/{job_id}/match")
+@api_router.post("/jobs/{job_id}/match")
 def match_job(job_id: int) -> dict[str, Any]:
     conn = get_db()
     try:
@@ -472,7 +477,7 @@ def match_job(job_id: int) -> dict[str, Any]:
         conn.close()
 
 
-@app.get("/api/jobs/{job_id}/matches")
+@api_router.get("/jobs/{job_id}/matches")
 def get_job_matches(job_id: int) -> list[dict[str, Any]]:
     conn = get_db()
     try:
@@ -509,7 +514,7 @@ class FinalChallengeIn(BaseModel):
     status: str = "sent"
 
 
-@app.post("/api/final-challenges")
+@api_router.post("/final-challenges")
 def final_challenge(body: FinalChallengeIn) -> dict[str, int]:
     j, t, c = body.jobId, body.talentId, (body.challengeText or "").strip()
     st = (body.status or "sent").strip() or "sent"
@@ -537,7 +542,7 @@ def final_challenge(body: FinalChallengeIn) -> dict[str, int]:
         conn.close()
 
 
-@app.get("/api/final-challenges")
+@api_router.get("/final-challenges")
 def list_final_challenges(jobId: int | None = None) -> list[dict[str, Any]]:
     conn = get_db()
     try:
@@ -559,7 +564,7 @@ class PaymentIn(BaseModel):
     payoutMethod: str = "mobile_money"
 
 
-@app.post("/api/payments")
+@api_router.post("/payments")
 def create_payment(body: PaymentIn) -> dict[str, Any]:
     if not body.companyId or not body.talentId:
         raise HTTPException(400, "companyId and talentId required.")
@@ -591,7 +596,7 @@ def create_payment(body: PaymentIn) -> dict[str, Any]:
         conn.close()
 
 
-@app.get("/api/users")
+@api_router.get("/users")
 def list_users() -> list[dict[str, Any]]:
     conn = get_db()
     try:
@@ -602,7 +607,7 @@ def list_users() -> list[dict[str, Any]]:
         conn.close()
 
 
-@app.get("/api/audit-trail")
+@api_router.get("/audit-trail")
 def get_audit_trail(
     entityType: str | None = None,
     entityId: int | None = None,
@@ -638,6 +643,12 @@ def get_audit_trail(
         return out
     finally:
         conn.close()
+
+
+app.include_router(
+    api_router,
+    prefix="" if os.environ.get("VERCEL") else "/api",
+)
 
 
 if __name__ == "__main__":
