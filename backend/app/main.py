@@ -20,6 +20,7 @@ from .persistence import (
     get_talent_roster_for_matching,
     persist_submission_evaluation,
 )
+from .challenge_recommend import challenge_recommend_handler
 from .pipeline import run_evaluation_pipeline, run_job_parse_request, strip_metadata
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,25 @@ def list_challenges() -> list[dict[str, Any]]:
         return [_row_to_dict(r) for r in cur.fetchall()]  # type: ignore[misc]
     finally:
         conn.close()
+
+
+class ChallengeRecommendIn(BaseModel):
+    talentClaims: str = ""
+    explanation: str = ""
+    githubUrl: str = ""
+    liveUrl: str = ""
+    videoUrl: str = ""
+    maxPicks: int = 5
+    diversifySeed: int | None = None
+
+
+@api_router.post("/challenges/recommend")
+async def challenges_recommend(body: ChallengeRecommendIn) -> dict[str, Any]:
+    """Before /challenges/{id} so `recommend` is not captured as a numeric id (fixes HTTP 405)."""
+    b = body.model_dump()
+    if body.diversifySeed is None:
+        b.pop("diversifySeed", None)
+    return await challenge_recommend_handler(get_db, b)
 
 
 @api_router.get("/challenges/{challenge_id}")
