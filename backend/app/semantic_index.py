@@ -13,13 +13,7 @@ _model = None
 def _get_model():
     global _model
     if _model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError as e:
-            raise RuntimeError(
-                "sentence-transformers not installed. For local matching with embeddings, run: "
-                "pip install -r requirements-ml.txt"
-            ) from e
+        from sentence_transformers import SentenceTransformer
 
         _model = SentenceTransformer(EMBEDDING_MODEL)
     return _model
@@ -28,13 +22,7 @@ def _get_model():
 def _get_collection():
     global _collection
     if _collection is None:
-        try:
-            import chromadb
-        except ImportError as e:
-            raise RuntimeError(
-                "chromadb not installed. For local matching with Chroma, run: "
-                "pip install -r requirements-ml.txt"
-            ) from e
+        import chromadb
 
         client = chromadb.PersistentClient(path=CHROMA_PATH)
         _collection = client.get_or_create_collection(

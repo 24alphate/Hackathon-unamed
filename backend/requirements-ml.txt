@@ -1,4 +1,0 @@
-# Optional heavy ML stack for local (or a VM with a GPU / large disk).
-# Install: pip install -r requirements.txt -r requirements-ml.txt
-sentence-transformers>=3.0.0
-chromadb>=0.5.5

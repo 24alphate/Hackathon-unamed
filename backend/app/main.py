@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .config import API_PORT, GITHUB_TOKEN, OPENAI_API_KEY
@@ -57,6 +58,105 @@ def health() -> dict[str, Any]:
         "evaluator": "openai" if OPENAI_API_KEY else "mock",
         "github": "token" if GITHUB_TOKEN else "public_rate_limit",
     }
+
+
+class AuthSignupIn(BaseModel):
+    name: str = ""
+    email: str = ""
+    country: str = ""
+    role: str = "talent"
+    company_name: str = ""
+
+
+class AuthLoginIn(BaseModel):
+    email: str = ""
+
+
+@app.post("/api/auth/signup")
+def auth_signup(body: AuthSignupIn) -> Any:
+    """Parity with server/index.js POST /api/auth/signup (needed on Vercel: Python, not Node)."""
+    name = (body.name or "").strip()
+    email = (body.email or "").strip().lower()
+    country = (body.country or "").strip()
+    role = (body.role or "talent").strip()
+    company_name = (body.company_name or "").strip()
+
+    if not name or not email:
+        return JSONResponse(status_code=400, content={"error": "Name and email are required."})
+    if role not in ("talent", "company"):
+        return JSONResponse(status_code=400, content={"error": "Role must be talent or company."})
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE email = ?", (email,))
+        if cur.fetchone():
+            return JSONResponse(
+                status_code=409, content={"error": "Email already registered. Use the Log In tab instead."}
+            )
+        cur.execute(
+            "INSERT INTO users (name, email, country, role) VALUES (?,?,?,?)", (name, email, country, role)
+        )
+        conn.commit()
+        user_id = int(cur.lastrowid)
+
+        profile_id: int | None = None
+        if role == "talent":
+            cur.execute(
+                "INSERT INTO talent_profiles (user_id, headline, country, bio, portfolio_links) VALUES (?,?,?,?,?)",
+                (user_id, "", country, "", "[]"),
+            )
+            conn.commit()
+            profile_id = int(cur.lastrowid)
+        else:
+            cn = company_name or f"{name}'s Company"
+            cur.execute(
+                "INSERT INTO companies (user_id, company_name, country) VALUES (?,?,?)",
+                (user_id, cn, country),
+            )
+            conn.commit()
+            profile_id = int(cur.lastrowid)
+
+        cur.execute("SELECT id, name, email, country, role, created_at FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        user = _row_to_dict(row)
+        return {"user": user, "profileId": profile_id}
+    finally:
+        conn.close()
+
+
+@app.post("/api/auth/login")
+def auth_login(body: AuthLoginIn) -> Any:
+    """Parity with server/index.js POST /api/auth/login."""
+    email = (body.email or "").strip().lower()
+    if not email:
+        return JSONResponse(status_code=400, content={"error": "Email is required."})
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, email, country, role, created_at FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(
+                status_code=404, content={"error": "No account found. Check the email or sign up."}
+            )
+        user = _row_to_dict(row)
+        assert user is not None
+        uid = user["id"]
+        profile_id: int | None = None
+        if user.get("role") == "talent":
+            cur.execute("SELECT id FROM talent_profiles WHERE user_id = ?", (uid,))
+            r = cur.fetchone()
+            profile_id = int(r["id"]) if r else None
+        elif user.get("role") == "company":
+            cur.execute("SELECT id FROM companies WHERE user_id = ?", (uid,))
+            r = cur.fetchone()
+            profile_id = int(r["id"]) if r else None
+
+        return {"user": user, "profileId": profile_id}
+    finally:
+        conn.close()
 
 
 @app.get("/api/bootstrap")
