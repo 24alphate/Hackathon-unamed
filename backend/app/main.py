@@ -233,6 +233,57 @@ def list_challenges() -> list[dict[str, Any]]:
         conn.close()
 
 
+@api_router.get("/talent/{talent_id}/profile")
+def get_talent_profile(talent_id: int) -> dict[str, Any]:
+    """Parity with server/index.js GET /api/talent/:id/profile (Badges & profile page)."""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, name, email, country, role FROM users WHERE id = ? AND role = 'talent'",
+            (talent_id,),
+        )
+        u = cur.fetchone()
+        if not u:
+            raise HTTPException(404, "Talent not found.")
+        user = {k: u[k] for k in u.keys()}
+        cur.execute("SELECT * FROM talent_profiles WHERE user_id = ?", (talent_id,))
+        tp = cur.fetchone()
+        base_profile = _row_to_dict(tp) or {}
+        cur.execute(
+            """
+            SELECT ab.id, ab.confidence, ab.proof_strength_score, ab.awarded_at,
+                   b.name as badge_name, s.name as skill_name, s.category
+            FROM awarded_badges ab
+            JOIN badges b ON b.id = ab.badge_id
+            LEFT JOIN skills s ON s.id = b.skill_id
+            WHERE ab.talent_id = ?
+            ORDER BY ab.awarded_at DESC
+            """,
+            (talent_id,),
+        )
+        badges = [{k: r[k] for k in r.keys()} for r in cur.fetchall()]
+        cur.execute(
+            """
+            SELECT s.id, s.challenge_id, s.github_url, s.live_url, s.explanation,
+                   s.submitted_at, c.title as challenge_title, c.description as challenge_description,
+                   ea.confidence_score, ea.project_type
+            FROM submissions s
+            JOIN challenges c ON c.id = s.challenge_id
+            LEFT JOIN evidence_analyses ea ON ea.submission_id = s.id
+            WHERE s.talent_id = ?
+            ORDER BY s.submitted_at DESC
+            """,
+            (talent_id,),
+        )
+        submissions = [{k: r[k] for k in r.keys()} for r in cur.fetchall()]
+    finally:
+        conn.close()
+    proof_profile = build_profile_from_db(talent_id)
+    profile: dict[str, Any] = {**base_profile, **proof_profile}
+    return {"user": user, "profile": profile, "badges": badges, "submissions": submissions}
+
+
 class ChallengeRecommendIn(BaseModel):
     talentClaims: str = ""
     explanation: str = ""

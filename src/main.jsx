@@ -3989,25 +3989,52 @@ function TalentProfilePage({ talentId, currentUser }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+    setError("");
     fetch(`${API_BASE}/talent/${talentId}/profile`)
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setError("Could not load profile."); setLoading(false); });
+      .then(async (r) => {
+        const d = await r.json();
+        if (cancelled) return;
+        if (!r.ok) {
+          setError(d.detail || d.error || `Could not load profile (${r.status}).`);
+          setData(null);
+          setLoading(false);
+          return;
+        }
+        if (!d?.user) {
+          setError("Invalid profile response from server.");
+          setData(null);
+          setLoading(false);
+          return;
+        }
+        setData(d);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Could not load profile.");
+          setData(null);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
   }, [talentId]);
 
   if (loading) return <div className="page-loading"><LoaderCircle className="spin" size={32} /><p>Loading profile…</p></div>;
   if (error) return <div className="page-error"><p>{error}</p></div>;
-  if (!data) return null;
+  if (!data?.user) return null;
 
   const { user, profile, badges, submissions } = data;
+  const badgeList = Array.isArray(badges) ? badges : [];
+  const submissionList = Array.isArray(submissions) ? submissions : [];
 
   return (
     <div className="flow-grid">
       <aside className="rail">
         <Step done icon={<UserRoundCheck size={18} />} title="Identity" text={`${user.country || "—"} · ${user.role}`} />
-        <Step done={badges.length > 0} icon={<BadgeCheck size={18} />} title="Badges" text={`${badges.length} verified badge${badges.length !== 1 ? "s" : ""}`} />
-        <Step done={submissions.length > 0} icon={<UploadCloud size={18} />} title="Submissions" text={`${submissions.length} challenge${submissions.length !== 1 ? "s" : ""} completed`} />
+        <Step done={badgeList.length > 0} icon={<BadgeCheck size={18} />} title="Badges" text={`${badgeList.length} verified badge${badgeList.length !== 1 ? "s" : ""}`} />
+        <Step done={submissionList.length > 0} icon={<UploadCloud size={18} />} title="Submissions" text={`${submissionList.length} challenge${submissionList.length !== 1 ? "s" : ""} completed`} />
       </aside>
 
       <div className="workspace">
@@ -4019,16 +4046,16 @@ function TalentProfilePage({ talentId, currentUser }) {
           </div>
         </div>
 
-        {badges.length > 0 && (
+        {badgeList.length > 0 && (
           <section>
             <h3 className="section-label">Earned Badges</h3>
             <div className="badge-grid">
-              {badges.map((b) => (
+              {badgeList.map((b) => (
                 <div className="badge" key={b.id}>
                   <BadgeCheck size={24} />
                   <h3>{b.badge_name}</h3>
                   <p>{b.skill_name} · {b.category}</p>
-                  <span>{Math.round(b.confidence * 100)}% verified</span>
+                  <span>{(b.confidence != null && b.confidence > 1 ? Math.round(b.confidence) : Math.round((b.confidence || 0) * 100))}% verified</span>
                 </div>
               ))}
             </div>
@@ -4042,11 +4069,11 @@ function TalentProfilePage({ talentId, currentUser }) {
           </section>
         )}
 
-        {submissions.length > 0 && (
+        {submissionList.length > 0 && (
           <section>
             <h3 className="section-label">Submission History</h3>
             <div className="submission-history">
-              {submissions.map((s) => (
+              {submissionList.map((s) => (
                 <article className="history-card" key={s.id}>
                   <div>
                     <h3>{s.challenge_title}</h3>
@@ -4067,7 +4094,7 @@ function TalentProfilePage({ talentId, currentUser }) {
           </section>
         )}
 
-        {badges.length === 0 && submissions.length === 0 && (
+        {badgeList.length === 0 && submissionList.length === 0 && (
           <div className="empty-state">
             <p>No submissions yet. Complete a challenge to earn your first badge.</p>
           </div>
