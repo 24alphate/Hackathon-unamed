@@ -1,0 +1,42 @@
+# Production: full stack on one host (e.g. Hetzner). Same-origin /api — no CORS for browser.
+# Copy deploy/env.example to .env, then: docker compose up -d --build
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SQLITE_PATH: /app/data/unmapped.db
+      CHROMA_PATH: /app/data/chroma
+      API_PORT: "8000"
+    volumes:
+      - api_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 20s
+      timeout: 15s
+      retries: 8
+      start_period: 420s
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  api_data:

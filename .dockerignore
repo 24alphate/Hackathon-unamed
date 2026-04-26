@@ -1,0 +1,16 @@
+**/.claude
+**/__pycache__
+**/.venv
+**/*.pyc
+node_modules
+dist
+.git
+.env
+.env.*
+backend/.venv
+backend/**/__pycache__
+server/data
+*.db
+.DS_Store
+benchmarks
+scripts
