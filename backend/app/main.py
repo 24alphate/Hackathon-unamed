@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -33,7 +32,28 @@ async def lifespan(_app: FastAPI):
     yield
 
 
+def _scope_after_strip_api_prefix(scope: dict[str, Any]) -> dict[str, Any]:
+    """Map /api/… and /api → /… and / for routing (Vercel + local + mis-set VERCEL all behave)."""
+    p = scope.get("path") or "/"
+    if p in ("/api", "/api/"):
+        return {**scope, "path": "/"}
+    if p.startswith("/api/"):
+        return {**scope, "path": p[4:]}
+    return scope
+
+
+class _StripApiPrefix:
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") in ("http", "websocket") and "path" in scope:
+            scope = _scope_after_strip_api_prefix(scope)
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(title="Unmapped API", version="0.2", lifespan=lifespan)
+# CORS first (inner), strip /api last (outer) so path is correct before the rest of the stack
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -42,9 +62,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(_StripApiPrefix)
 
-# Vercel "api" service uses routePrefix /api: incoming paths are /health, /auth/login, …
-# (not /api/health). Use a router with prefix /api for local/uvicorn; none on Vercel.
+# Routes are always /health, /auth/login, … (no /api). Middleware strips /api if present
+# so both Vercel and local /api/... hit the same handlers.
 api_router = APIRouter()
 
 
@@ -645,10 +666,7 @@ def get_audit_trail(
         conn.close()
 
 
-app.include_router(
-    api_router,
-    prefix="" if os.environ.get("VERCEL") else "/api",
-)
+app.include_router(api_router, prefix="")
 
 
 if __name__ == "__main__":
