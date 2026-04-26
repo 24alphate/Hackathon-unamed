@@ -1,0 +1,38 @@
+[
+  {
+    "name": "responsive-form-no-api",
+    "submission": {
+      "projectDescription": "Built a responsive landing page with reusable sections and a validated contact form.",
+      "githubUrl": "",
+      "liveUrl": "https://example.com/demo",
+      "explanation": "Mobile-first layout, reusable components, and form validation with clear user feedback.",
+      "videoUrl": ""
+    },
+    "expected_skills": ["Responsive UI Design", "Form Handling", "Form Validation"],
+    "should_not_award": ["API Integration", "Node.js Backend"]
+  },
+  {
+    "name": "claims-only-weak-evidence",
+    "submission": {
+      "projectDescription": "I built a full-stack app with AI and payments.",
+      "githubUrl": "",
+      "liveUrl": "",
+      "explanation": "Trust me, it is production ready.",
+      "videoUrl": ""
+    },
+    "expected_skills": [],
+    "should_not_award": ["API Integration", "Database Integration", "Node.js Backend", "Responsive UI Design"]
+  },
+  {
+    "name": "dashboard-data-signals",
+    "submission": {
+      "projectDescription": "Merchant analytics dashboard with transaction table, filters, and chart widgets.",
+      "githubUrl": "https://github.com/fake/merchant-dashboard",
+      "liveUrl": "",
+      "explanation": "Includes data visualization and responsive dashboard cards.",
+      "videoUrl": ""
+    },
+    "expected_skills": ["Dashboard UI", "Data Visualization", "Financial Data Presentation"],
+    "should_not_award": ["Node.js Backend"]
+  }
+]

@@ -1,0 +1,12 @@
+.claude/
+__pycache__/
+*.py[cod]
+*.pyo
+backend/data/
+node_modules/
+dist/
+server/data/
+*.db
+.env
+.env.local
+.DS_Store
